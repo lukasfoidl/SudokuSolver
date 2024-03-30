@@ -7,26 +7,22 @@ namespace Sudoku
     class Parallel
     {
 
-        List<Task<Board>> task_list = new List<Task<Board>>();
-        List<char[,]> solutions = new List<char[,]>();
+        private int length;
+        private char emptyEntry;
+        private List<Task<char[,]>> taskList = new List<Task<char[,]>>();
 
-        int length;
-        char EMPTY_ENTRY = '*';
-        public Parallel(int length)
+        public Parallel(int length, char emptyEntry)
         {
             this.length = length;
+            this.emptyEntry = emptyEntry;
         }
 
-        public List<char[,]> solveSudoku(char[,] board, int row, int col)
+        public void solveSudoku(char[,] board)
         {
-            // create object of board with step 0 
-            // step == number of solved cells
-            Board board1 = new Board(board, 0);
-
             // creat thread to start solve suduko
-            Task<Board> parent = new Task<Board>(() =>
+            Task<char[,]> parent = new Task<char[,]>(() =>
             {
-                return canSolveSudokuFromCell(0, 0, board1);
+                return canSolveSudokuFromCell(0, 0, board);
 
             });
             parent.Start();
@@ -35,18 +31,17 @@ namespace Sudoku
             // get number of empty cell in grid to know how many step should threads to solve 
             int no_empty_cells = getNumOfEmptyCell(board);
 
-
             // loop over list of tasks to get successful tasks to solve suduku 
-            for (int i = 0; i < task_list.Count; i++)
+            for (int i = 0; i < taskList.Count; i++)
             {
 
                 try
                 {
                     // check number of solved cell for each task to get successful tasks
-                    if (task_list[i].Result.step == no_empty_cells)
+                    if (taskList[i].Result.step == no_empty_cells)
                     {
                         // put successful task.grid in a list
-                        solutions.Add(task_list[i].Result.grid);
+                        solutions.Add(taskList[i].Result.grid);
                     }
                 }
                 catch (Exception e)
@@ -58,82 +53,59 @@ namespace Sudoku
 
             // return a list of solutions
             return solutions;
-
         }
 
-
-        private Board canSolveSudokuFromCell(int row, int col, Board board)
+        private char[,] canSolveSudokuFromCell(int row, int col, char[,] board)
         {
-            // chech column
+            // if reached end of column => take next row, if reached end of rows => finished
             if (col == length)
             {
                 col = 0;
                 row++;
 
-                // if row == legth then task is looped over whole grid
                 if (row == length)
                 {
                     return board;
                 }
-
             }
 
-            // if it's nut empty cell then return
-            if (board.grid[row, col] != EMPTY_ENTRY)
+            // if cell is not empty skip it 
+            if (board[row, col] != emptyEntry)
             {
                 return canSolveSudokuFromCell(row, col + 1, board);
             }
 
+            // for each possible value (1-9) try to place it, if successful => rerun recursive with next cell
             for (int value = 1; value <= length; value++)
             {
                 char charToPlace = (char)(value + '0');
 
-                // check if value is correct to place at this location or not
-                if (canPlaceValue(board.grid, row, col, charToPlace))
+
+                if (canPlaceValue(board, row, col, charToPlace))
                 {
+                    board[row, col] = charToPlace;
+
                     // create a copy of grid
-                    var grid = board.grid.Clone() as char[,];
+                    var boardCopy = board.Clone() as char[,];
 
-                    // place a value at copt
-                    grid[row, col] = charToPlace;
-
-                    // create object of board with step+1 
-                    //step is how many cells are solved
-                    Board new_board = new Board(grid, board.step + 1);
-
-                    // create anthor task with a new_board object to loop again
-                    Task<Board> t = new Task<Board>(() =>
+                    // create anthor task with the copied board
+                    Task<char[,]> t = new Task<char[,]>(() =>
                     {
-                        return canSolveSudokuFromCell(row, col + 1, new_board);
+                        return canSolveSudokuFromCell(row, col + 1, boardCopy);
 
                     });
+
                     t.Start();
-                    // put that task in a list
-                    task_list.Add(t);
+                    taskList.Add(t);
                 }
             }
 
             return board;
         }
 
-
-        private int getNumOfEmptyCell(char[,] grid)
-        {
-            int count = 0;
-            for (int row = 0; row < 9; row++)
-            {
-                for (int col = 0; col < 9; col++)
-                {
-                    if (grid[row, col] == EMPTY_ENTRY)
-                        count++;
-                }
-            }
-            return count;
-        }
-
         private bool canPlaceValue(char[,] board, int row, int col, char charToPlace)
         {
-            // Check column of the placement
+            // check column of the placement
             for (int i = 0; i < length; i++)
             {
                 if (charToPlace == board[i, col])
@@ -142,8 +114,7 @@ namespace Sudoku
                 }
             }
 
-
-            // Check row of the placement
+            // check row of the placement
             for (int i = 0; i < length; i++)
             {
                 if (charToPlace == board[row, i])
@@ -152,14 +123,14 @@ namespace Sudoku
                 }
             }
 
-            // Check region constraints - get the size of the sub-box
+            // check sub box of the placement
             int regionSize = (int)Math.Sqrt(length);
 
             int verticalBoxIndex = row / regionSize;
             int horizontalBoxIndex = col / regionSize;
 
-            int topLeftOfSubBoxRow = regionSize * verticalBoxIndex; //3*0=0
-            int topLeftOfSubBoxCol = regionSize * horizontalBoxIndex;//3*1=3
+            int topLeftOfSubBoxRow = regionSize * verticalBoxIndex;
+            int topLeftOfSubBoxCol = regionSize * horizontalBoxIndex;
 
             for (int i = 0; i < regionSize; i++)
             {
@@ -175,17 +146,18 @@ namespace Sudoku
             return true;
         }
 
-        public void printBoard(char[,] b)
+        private int getNumOfEmptyCell(char[,] grid)
         {
-            int length = (int)Math.Sqrt(b.Length);
-            for (int i = 0; i < length; i++)
+            int count = 0;
+            for (int row = 0; row < 9; row++)
             {
-                for (int j = 0; j < length; j++)
-                    Console.Write(b[i, j] + " ");
-                Console.WriteLine();
+                for (int col = 0; col < 9; col++)
+                {
+                    if (grid[row, col] == emptyEntry)
+                        count++;
+                }
             }
-
+            return count;
         }
     }
-
 }

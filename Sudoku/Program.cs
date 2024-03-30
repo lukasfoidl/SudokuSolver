@@ -2,57 +2,80 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using static System.Net.Mime.MediaTypeNames;
 
 namespace Sudoku
 {
     static class Program
     {
         static StreamReader streamReader;
-        static string path = @"..\..\Sudoku\";
+        const string PATH = @"..\..\Sudoku\";
+        const string FILE = "case17.txt";
+        const char EMPTY_ENTRY = '*';
+        const int LENGTH = 9;
 
         [STAThread]
         static void Main()
         {
+            Console.WriteLine("Reading file " + FILE + "...");
+
             char[,] board = new char[9, 9];
-            string test_case_name = "case17.txt";
-            // read test case from file
-            readTestCase(path + test_case_name, board);
+            bool success = readTestCase(PATH + FILE, board);
+            if (!success) return;
+
+            Console.WriteLine("Solving Sudoku sequential...");
 
             #region Sequential
-            // start stop watch to calculate time
-            Stopwatch stopwatch = Stopwatch.StartNew();
 
-            Sequential sequential = new Sequential(9);
-            sequential.solveSudoku(board);
+            char[,] boardSeq = (char[,]) board.Clone();
+            Stopwatch swSeq = Stopwatch.StartNew();
 
-            stopwatch.Stop();
+            Sequential sequential = new Sequential(LENGTH, EMPTY_ENTRY);
+            sequential.solveSudoku(boardSeq);
 
-            double time_seq_sol = Convert.ToDouble(stopwatch.ElapsedMilliseconds);
+            swSeq.Stop();
+
+            double timeSeq = Convert.ToDouble(swSeq.ElapsedMilliseconds);
+
             #endregion
+
+            Console.WriteLine("Solving Sudoku parallel...");
 
             #region Parallel
-            Stopwatch stopwatch2 = Stopwatch.StartNew();
 
-            Parallel parallel = new Parallel(9);
-            List<char[,]> solutions = parallel.solveSudoku(board, 0, 0);
+            char[,] boardPar = (char[,])board.Clone();
+            Stopwatch swPar = Stopwatch.StartNew();
 
-            stopwatch2.Stop();
-            // get time per each solution
-            double time_per_sol = Convert.ToDouble(stopwatch.ElapsedMilliseconds) / Convert.ToDouble(solutions.Count);
+            Parallel parallel = new Parallel(LENGTH, EMPTY_ENTRY);
+            List<char[,]> solutions = parallel.solveSudoku(boardPar);
+
+            swPar.Stop();
+
+            double timePar = Convert.ToDouble(swPar.ElapsedMilliseconds) / Convert.ToDouble(solutions.Count);
 
             #endregion
+
+            Console.WriteLine("Sequential time:             " + timeSeq + "ms");
+            Console.WriteLine("Parallel time per solution:  " + timePar + "ms");
+            Console.WriteLine("Soutions found:              " + solutions.Count);
+            Console.WriteLine();
+            Console.WriteLine("Original board:");
+            printBoard(board);
+            Console.WriteLine();
+            Console.WriteLine("Sequential board (" + (checkBoard(boardSeq) ? "CORRECT" : "INCORRECT") + "):");
+            printBoard(boardSeq);
+            //Console.WriteLine();
+            //Console.WriteLine("Parallel board: (" + (checkBoard(boardPar) ? "CORRECT" : "INCORRECT") + "):");
+            //printBoard(boardPar);
+
+            Console.ReadLine();
         }
 
-        public static bool readTestCase(String path, char[,] board)
+        private static bool readTestCase(string path, char[,] board)
         {
             try
             {
                 streamReader = new StreamReader(path);
-                String line;
+                string line;
                 int j = 0;
                 while ((line = streamReader.ReadLine()) != null)
                 {
@@ -72,17 +95,73 @@ namespace Sudoku
             }
         }
 
-        public static void printBoard(char[,] board)
+        private static void printBoard(char[,] board)
         {
             int length = (int)Math.Sqrt(board.Length);
             for (int i = 0; i < length; i++)
             {
                 for (int j = 0; j < length; j++)
+                {
                     Console.Write(board[i, j] + " ");
+                }
                 Console.WriteLine();
             }
 
         }
-    }
 
+        private static bool checkBoard(char[,] board)
+        {
+            double checkSum = (LENGTH + 1) * ((double)LENGTH / 2);
+
+            for (int i = 0; i < LENGTH; i++)
+            {
+
+                // calculate sums of rows and columns
+                double sumCol = 0;
+                double sumRow = 0;
+                for (int j = 0; j < LENGTH; j++)
+                {
+                    sumCol += int.Parse(board[i, j].ToString());
+                    sumRow += int.Parse(board[j, i].ToString());
+                }
+
+                // check sums of rows and columns
+                if (checkSum != sumCol || checkSum != sumRow)
+                {
+                    return false;
+                }
+            }
+
+            // check sub box
+            int regionSize = (int)Math.Sqrt(LENGTH);
+
+            for (int i = 0; i < regionSize; i++)
+            {
+                int topLeftOfSubBoxRow = regionSize * i;
+
+                for (int j = 0; j < regionSize; j++)
+                {
+                    int topLeftOfSubBoxCol = regionSize * j;
+                    double sum = 0;
+
+                    // calculate sum in sub box
+                    for (int x = topLeftOfSubBoxRow; x < topLeftOfSubBoxRow + regionSize; x++)
+                    {
+                        for (int y = topLeftOfSubBoxCol; y < topLeftOfSubBoxCol + regionSize; y++)
+                        {
+                            sum += int.Parse(board[x, y].ToString());
+                        }
+                    }
+
+                    if (checkSum != sum)
+                    {
+                        return false;
+                    }
+                }
+
+            }
+
+            return true;
+        }
+    }
 }
