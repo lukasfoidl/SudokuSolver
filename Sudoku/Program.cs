@@ -1,106 +1,108 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
 
-namespace Sudoku
+namespace SudokuSolver
 {
     static class Program
     {
-        static StreamReader streamReader;
-        const string PATH = @"..\..\Sudoku\";
-        const string FILE = "case17.txt";
-        const char EMPTY_ENTRY = '*';
-        const int LENGTH = 9;
+        private const int LENGTH = 16;
+        //private readonly static int[,] initialBoard = {
+        //    {5, 3, 0, 0, 7, 0, 0, 0, 0},
+        //    {6, 0, 0, 1, 9, 5, 0, 0, 0},
+        //    {0, 9, 8, 0, 0, 0, 0, 6, 0},
+        //    {8, 0, 0, 0, 6, 0, 0, 0, 3},
+        //    {4, 0, 0, 8, 0, 3, 0, 0, 1},
+        //    {7, 0, 0, 0, 2, 0, 0, 0, 6},
+        //    {0, 6, 0, 0, 0, 0, 2, 8, 0},
+        //    {0, 0, 0, 4, 1, 9, 0, 0, 5},
+        //    {0, 0, 0, 0, 8, 0, 0, 7, 9}
+        //};
+        private readonly static int[,] initialBoard = {
+            {1, 0, 0, 0, 3, 0, 15, 0, 0, 0, 9, 0, 0, 7, 0, 0},
+            {3, 0, 6, 9, 0, 10, 0, 0, 1, 7, 4, 5, 8, 0, 12, 15 },
+            {0, 11, 15, 4, 0, 6, 8, 12, 14, 2, 0, 13, 10, 3, 0, 9 },
+            {0, 0, 8, 12, 0, 4, 5, 0, 15, 0, 0, 0, 0, 2, 0, 14 },
 
-        [STAThread]
+            {0, 8, 3, 0, 13, 0, 9, 0, 0, 0, 12, 11, 1, 14, 2, 0 },
+            {13, 0, 0, 11, 15, 3, 16, 2, 0, 1, 7, 0, 0, 8, 0, 12 },
+            {0, 1, 7, 6, 0, 11, 0, 0, 16, 0, 8, 14, 0, 0, 0, 0 },
+            {10, 0, 12, 0, 14, 1, 0, 8, 0, 0, 13, 15, 0, 4, 7, 0 },
+
+            {12, 4, 13, 1, 0, 16, 14, 0, 0, 0, 11, 7, 0, 0, 0, 0 },
+            {0, 16, 11, 10, 0, 0, 0, 3, 0, 12, 0, 2, 0, 0, 14, 7 },
+            {0, 0, 5, 3, 9, 2, 0, 7, 13, 0, 0, 16, 0, 0, 11, 4 },
+            {0, 0, 14, 2, 0, 0, 0, 11, 0, 8, 15, 10, 0, 1, 6, 3 },
+
+            {9, 0, 10, 0, 0, 0, 0, 0, 6, 4, 2, 8, 0, 12, 16, 1 },
+            {0, 0, 0, 7, 0, 5, 2, 0, 0, 0, 0, 0, 15, 0, 4, 0 },
+            {6, 0, 16, 0, 0, 0, 4, 0, 7, 0, 5, 0, 14, 0, 0, 10 },
+            {0, 12, 0, 0, 0, 0, 7, 6, 0, 13, 0, 1, 9, 0, 0, 2 }
+        };
+
         static void Main()
         {
-            Console.WriteLine("Reading file " + FILE + "...");
-
-            char[,] board = new char[9, 9];
-            bool success = readTestCase(PATH + FILE, board);
-            if (!success) return;
-
-            Console.WriteLine("Solving Sudoku sequential...");
+            SudokuSolver sudokuSolver = new SudokuSolver(initialBoard);
 
             #region Sequential
 
-            char[,] boardSeq = (char[,]) board.Clone();
+            Console.WriteLine("Solving Sudoku sequential...");
+
             Stopwatch swSeq = Stopwatch.StartNew();
-
-            Sequential sequential = new Sequential(LENGTH, EMPTY_ENTRY);
-            sequential.solveSudoku(boardSeq);
-
+            int[,] boardSeq = sudokuSolver.solveSequential();
             swSeq.Stop();
 
             double timeSeq = Convert.ToDouble(swSeq.ElapsedMilliseconds);
 
             #endregion
 
-            Console.WriteLine("Solving Sudoku parallel...");
-
             #region Parallel
 
-            char[,] boardPar = (char[,])board.Clone();
+            Console.WriteLine("Solving Sudoku parallel...");
+
             Stopwatch swPar = Stopwatch.StartNew();
-
-            Parallel parallel = new Parallel(LENGTH, EMPTY_ENTRY);
-            List<char[,]> solutions = parallel.solveSudoku(boardPar);
-
+            int[,] boardPar = sudokuSolver.solveParallel();
             swPar.Stop();
 
-            double timePar = Convert.ToDouble(swPar.ElapsedMilliseconds) / Convert.ToDouble(solutions.Count);
+            double timePar = Convert.ToDouble(swPar.ElapsedMilliseconds);
 
             #endregion
 
-            Console.WriteLine("Sequential time:             " + timeSeq + "ms");
-            Console.WriteLine("Parallel time per solution:  " + timePar + "ms");
-            Console.WriteLine("Soutions found:              " + solutions.Count);
+            #region Output
+
+            Console.WriteLine("Sequential time: " + timeSeq + "ms");
+            Console.WriteLine("Parallel time:   " + timePar + "ms");
             Console.WriteLine();
             Console.WriteLine("Original board:");
-            printBoard(board);
+            printBoard(initialBoard);
             Console.WriteLine();
-            Console.WriteLine("Sequential board (" + (checkBoard(boardSeq) ? "CORRECT" : "INCORRECT") + "):");
-            printBoard(boardSeq);
-            //Console.WriteLine();
-            //Console.WriteLine("Parallel board: (" + (checkBoard(boardPar) ? "CORRECT" : "INCORRECT") + "):");
-            //printBoard(boardPar);
+            if (boardSeq != null)
+            {
+                Console.WriteLine("Sequential board (" + (checkBoard(boardSeq) ? "CORRECT" : "INCORRECT") + "):");
+                printBoard(boardSeq);
+            } else
+            {
+                Console.WriteLine("Sequential board: No solution found!");
+            }
+            Console.WriteLine();
+            if (boardPar != null)
+            {
+                Console.WriteLine("Parallel board: (" + (checkBoard(boardPar) ? "CORRECT" : "INCORRECT") + "):");
+                printBoard(boardPar);
+            } else
+            {
+                Console.WriteLine("Parallel board: No solution found!");
+            }
+
+            #endregion
 
             Console.ReadLine();
         }
 
-        private static bool readTestCase(string path, char[,] board)
+        private static void printBoard(int[,] board)
         {
-            try
+            for (int i = 0; i < LENGTH; i++)
             {
-                streamReader = new StreamReader(path);
-                string line;
-                int j = 0;
-                while ((line = streamReader.ReadLine()) != null)
-                {
-                    for (int i = 0; i < 9; i++)
-                    {
-                        board[j, i] = line[i];
-                    }
-                    j++;
-                }
-                streamReader.Close();
-                return true;
-            }
-            catch (FileNotFoundException e)
-            {
-                Console.WriteLine(e);
-                return false;
-            }
-        }
-
-        private static void printBoard(char[,] board)
-        {
-            int length = (int)Math.Sqrt(board.Length);
-            for (int i = 0; i < length; i++)
-            {
-                for (int j = 0; j < length; j++)
+                for (int j = 0; j < LENGTH; j++)
                 {
                     Console.Write(board[i, j] + " ");
                 }
@@ -109,9 +111,9 @@ namespace Sudoku
 
         }
 
-        private static bool checkBoard(char[,] board)
+        private static bool checkBoard(int[,] board)
         {
-            double checkSum = (LENGTH + 1) * ((double)LENGTH / 2);
+            double checkSum = (LENGTH + 1) * ((double)LENGTH / 2); // Gauss sum formula
 
             for (int i = 0; i < LENGTH; i++)
             {
